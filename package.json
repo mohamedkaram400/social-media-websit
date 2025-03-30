@@ -1,0 +1,27 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build"
+    },
+    "devDependencies": {
+        "@inertiajs/vue3": "^1.0.0",
+        "@tailwindcss/forms": "^0.5.3",
+        "@vitejs/plugin-vue": "^4.5.0",
+        "autoprefixer": "^10.4.12",
+        "axios": "^1.6.8",
+        "laravel-vite-plugin": "^1.0.0",
+        "postcss": "^8.4.31",
+        "tailwindcss": "^3.2.1",
+        "vite": "^5.0.0",
+        "vue": "^3.2.41"
+    },
+    "dependencies": {
+        "@ckeditor/ckeditor5-build-classic": "^41.1.0",
+        "@ckeditor/ckeditor5-vue": "^5.1.0",
+        "@headlessui/vue": "^1.7.17",
+        "@heroicons/vue": "^2.1.1",
+        "headlessui": "^0.0.0"
+    }
+}
