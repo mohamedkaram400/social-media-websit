@@ -48,6 +48,12 @@ Route::middleware('auth')->group(function () {
         
         Route::post('/group/join/{group:slug}', 'join')
             ->name('group.join');
+        
+        Route::post('/group/approve-request/{group:slug}', 'approveRequest')
+            ->name('group.approveRequest');
+
+        Route::post('/group/change-role/{group:slug}', 'changeRole')
+            ->name('group.changeRole');
     });
 
 
@@ -101,9 +107,6 @@ Route::middleware('auth')->group(function () {
     Route::controller(GroupController::class)->group(function () {
         Route::post('/group', 'store')
             ->name('group.create');
-
-        Route::post('/group/approve-request/{group:slug}', 'approveRequest')
-            ->name('group.approveRequest');
     });
 });
 
