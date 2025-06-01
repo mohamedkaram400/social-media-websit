@@ -27,6 +27,11 @@ services:
             - meilisearch
             - mailpit
             # - selenium
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
     mysql:
         image: 'mysql/mysql-server:8.0'
         ports:
@@ -72,14 +77,10 @@ services:
         networks:
             - sail
         healthcheck:
-            test:
-                - CMD
-                - wget
-                - '--no-verbose'
-                - '--spider'
-                - 'http://localhost:7700/health'
-            retries: 3
+            test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+            interval: 10s
             timeout: 5s
+            retries: 5
     mailpit:
         image: 'axllent/mailpit:latest'
         ports:

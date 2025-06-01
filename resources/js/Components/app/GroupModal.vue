@@ -13,39 +13,47 @@ import TextInput from "@/Components/TextInput.vue";
 import Checkbox from "@/Components/Checkbox.vue";
 import InputTextarea from "@/Components/InputTextarea.vue";
 import axiosClient from "@/axiosClient.js";
-
+import GroupForm from "@/Components/app/GroupForm.vue";
 
 const props = defineProps({
     modelValue: Boolean
 })
+
 const formErrors = ref({});
 const form = useForm({
     name: '',
     auto_approval: true,
     about: '',
 })
+
 const show = computed({
     get: () => props.modelValue,
     set: (value) => emit('update:modelValue', value)
 })
+
+
 const emit = defineEmits(['update:modelValue', 'hide', 'create'])
+
+
 function closeModal() {
     show.value = false
     emit('hide')
     resetModal();
 }
+
 function resetModal() {
     form.reset()
     formErrors.value = {}
 }
+
 function submit() {
     axiosClient.post(route('group.create'), form)
         .then(({data}) => {
-            console.log(res)
             closeModal()
             emit('create', data)
         })
 }
+
 </script>
 
 <template>
@@ -91,29 +99,8 @@ function submit() {
                                     </button>
                                 </DialogTitle>
                                 <div class="p-4">
-                                    <div class="mb-3">
-                                        <label>Group Name</label>
-                                        <TextInput
-                                            type="text"
-                                            class="mt-1 block w-full"
-                                            v-model="form.name"
-                                            required
-                                            autofocus
-                                        />
-                                    </div>
 
-                                    <div class="mb-3">
-                                        <label>
-                                            <Checkbox name="remember" v-model:checked="form.auto_approval"/>
-                                            Enable Auto Approval
-                                        </label>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label>About Group</label>
-
-                                        <InputTextarea v-model="form.about" class="w-full"/>
-                                    </div>
+                                    <GroupForm :form="form" />
 
                                 </div>
 
