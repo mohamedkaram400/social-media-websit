@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Requests\StoreGroupRequest;
 use App\Notifications\InvitationInGroup;
 use App\Http\Requests\InviteUsersRequest;
+use App\Http\Requests\UpdateGroupRequest;
 use App\Http\Resources\GroupUserResource;
 use App\Notifications\InvitationApproved;
 use App\Notifications\RequestToJoinGroup;
@@ -109,8 +110,11 @@ class GroupController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Group $group)
+    public function update(UpdateGroupRequest $request, Group $group)
     {
+        $group->update($request->validated());
+
+        return back()->with('success', "Group was updated");
     }
 
     /**

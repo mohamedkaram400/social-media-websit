@@ -54,6 +54,12 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/group/change-role/{group:slug}', 'changeRole')
             ->name('group.changeRole');
+
+        Route::post('/group', 'store')
+            ->name('group.create');
+
+        Route::put('/group/{group:slug}', 'update')
+            ->name('group.update');
     });
 
 
@@ -100,13 +106,6 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/comment/{comment}/reaction', 'commentReaction')
             ->name('comment.reaction');
-    });
-
-
-    // Groups
-    Route::controller(GroupController::class)->group(function () {
-        Route::post('/group', 'store')
-            ->name('group.create');
     });
 });
 
