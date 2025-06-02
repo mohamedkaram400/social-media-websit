@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
+use App\Models\Post;
 use App\Models\User;
 use Inertia\Inertia;
 use App\Models\Group;
@@ -13,6 +14,7 @@ use Illuminate\Validation\Rule;
 use App\Http\Enums\GroupUserRole;
 use App\Notifications\RoleChanged;
 use App\Http\Enums\GroupUserStatus;
+use App\Http\Resources\PostResource;
 use App\Http\Resources\UserResource;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Resources\GroupResource;
@@ -31,10 +33,31 @@ class GroupController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function profile(Group $group)
+    public function profile(Request $request, Group $group)
     {
         $group->load('currentUserGroup');
-        
+
+        $userId = Auth::id();
+
+        if ($group->hasApprovedUser($userId)) {
+            $posts = Post::postsForTimeline($userId)
+                ->where('group_id', $group->id)
+                ->paginate(10);
+            $posts = PostResource::collection($posts);
+        } else {
+            return Inertia::render('Group/View', [
+                'success' => session('success'),
+                'group' => new GroupResource($group),
+                'posts' => null,
+                'users' => [],
+                'requests' => []
+            ]);
+        }
+
+        if ($request->wantsJson()) {
+            return PostResource::collection($posts);
+        }
+
         $users = User::query()
             ->select(['users.*', 'gu.role', 'gu.status', 'gu.group_id'])
             ->join('group_users AS gu', 'gu.user_id', 'users.id')
@@ -46,12 +69,13 @@ class GroupController extends Controller
         return Inertia::render('Group/View', [
             'success' => session('success'),
             'group' => new GroupResource($group),
+            'posts' => $posts,
             'users' => GroupUserResource::collection($users),
             'requests' => UserResource::collection($requests),
         ]);
     }
 
-    /**
+    /** 
      * Store a newly created resource in storage.
      */
     public function store(StoreGroupRequest $request)

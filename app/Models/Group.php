@@ -65,4 +65,13 @@ class Group extends Model
         return $this->belongsToMany(User::class, 'group_users')
             ->wherePivot('status', GroupUserStatus::APPROVED->value);
     }
+
+    public function hasApprovedUser($userID): bool
+    {
+        return GroupUser::query()
+            ->where('user_id', $userID)
+            ->where('group_id', $this->id)
+            ->where('status', GroupUserStatus::APPROVED->value)
+            ->exists();
+    }
 }
