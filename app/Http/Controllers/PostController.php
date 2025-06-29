@@ -3,115 +3,90 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePostRequest;
-use App\Http\Requests\UpdateCommentRequest;
 use App\Http\Requests\UpdatePostRequest;
-use App\Http\Resources\CommentResource;
-use App\Models\Comment;
+use App\Http\Resources\PostResource;
 use App\Models\Post;
 use App\Models\PostAttachment;
 use App\Models\Reaction;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use App\Traits\ApiResponseTrait;
 
 class PostController extends Controller
 {
+    use ApiResponseTrait; 
+
     /**
-     * Store a newly created resource in storage.
-     */
-    /**
-     * store.
+     * Store a newly created post in storage along with its attachments.
      *
-     * @param mixed $request
+     * @param StorePostRequest $request The validated request data.
      *
-     * @return void
+     * @return JsonResponse
+     *
+     * @throws \Exception If there is an error during creation or file storage.
      */
-    public function store(StorePostRequest $request)
+    public function store(StorePostRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $user = $request->user();
+
         DB::beginTransaction();
         $allFilePaths = [];
+
         try {
+            
             $post = Post::create($data);
 
             /** @var \Illuminate\Http\UploadedFile[] $files */
             $files = $data['attachments'] ?? [];
-            foreach ($files as $file) {
-                $path = $file->store('attachments/'.$post->id, 'public');
-                $allFilePaths[] = $path;
-                PostAttachment::create([
-                    'post_id' => $post->id,
-                    'name' => $file->getClientOriginalName(),
-                    'path' => $path,
-                    'mime' => $file->getMimeType(),
-                    'size' => $file->getSize(),
-                    'created_by' => $user->id,
-                ]);
-            }
+            $allFilePaths = $this->createNewPostAttachment($files, $post->id);
 
             DB::commit();
-        } catch (\Exception $e) {
+
+            return $this->apiResponse('Post Created Successfully', 201,new PostResource($post));
+
+        } catch (\Exception $e) { 
             foreach ($allFilePaths as $path) {
                 Storage::disk('public')->delete($path);
             }
             DB::rollBack();
             throw $e;
         }
-
-        return back();
     }
 
     /**
-     * Update the specified resource in storage.
-     */
-    /**
-     * update.
+     * Update the specified post and its attachments.
      *
-     * @param mixed $request
-     * @param mixed $post
+     * @param UpdatePostRequest $request The validated request data.
+     * @param Post $post The post to update.
      *
-     * @return void
+     * @return JsonResponse
+     *
+     * @throws \Exception If there is an error during the update process.
      */
-    public function update(UpdatePostRequest $request, Post $post)
+    public function update(UpdatePostRequest $request, Post $post): JsonResponse
     {
-        $user = $request->user();
-
         DB::beginTransaction();
         $allFilePaths = [];
+
         try {
             $data = $request->validated();
             $post->update($data);
 
-            $deleted_ids = $data['deleted_file_ids'] ?? []; // 1, 2, 3, 4
-
-            $attachments = PostAttachment::query()
-                ->where('post_id', $post->id)
-                ->whereIn('id', $deleted_ids)
-                ->get();
-
-            foreach ($attachments as $attachment) {
-                $attachment->delete();
-            }
+            $deleted_ids = $data['deleted_file_ids'] ?? []; 
+            $this->deleteOldPostAttachments($deleted_ids, $post->id);
 
             /** @var \Illuminate\Http\UploadedFile[] $files */
             $files = $data['attachments'] ?? [];
-            foreach ($files as $file) {
-                $path = $file->store('attachments/'.$post->id, 'public');
-                $allFilePaths[] = $path;
-                PostAttachment::create([
-                    'post_id' => $post->id,
-                    'name' => $file->getClientOriginalName(),
-                    'path' => $path,
-                    'mime' => $file->getMimeType(),
-                    'size' => $file->getSize(),
-                    'created_by' => $user->id,
-                ]);
-            }
+            $allFilePaths = $this->createNewPostAttachment($files, $post->id);
 
             DB::commit();
+
+            return $this->apiResponse('Post Updated Successfully', 201,new PostResource($post));
         } catch (\Exception $e) {
             foreach ($allFilePaths as $path) {
                 Storage::disk('public')->delete($path);
@@ -119,26 +94,21 @@ class PostController extends Controller
             DB::rollBack();
             throw $e;
         }
-
-        return back();
     }
 
     /**
-     * Remove the specified resource from storage.
-     */
-    /**
-     * destroy.
+     * Remove the specified post from storage if the user is authorized.
      *
-     * @param mixed $post
+     * @param Post $post The post to delete.
      *
-     * @return void
+     * @return JsonResponse|RedirectResponse
      */
-    public function destroy(Post $post)
+    public function destroy(Post $post): JsonResponse|RedirectResponse
     {
         $id = Auth::id();
 
         if ($post->user_id !== $id) {
-            return response("You did't have permission to delete this post", 403);
+            return $this->apiResponse("You did't have permission to delete this post", 404);
         }
 
         $post->delete();
@@ -147,11 +117,11 @@ class PostController extends Controller
     }
 
     /**
-     * download.
+     * Download a specific post attachment file.
      *
-     * @param mixed $attachment
+     * @param PostAttachment $attachment The attachment to download.
      *
-     * @return void
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
      */
     public function download(PostAttachment $attachment)
     {
@@ -159,14 +129,14 @@ class PostController extends Controller
     }
 
     /**
-     * postReaction.
+     * Toggle like reaction for the specified post.
      *
-     * @param mixed $request
-     * @param mixed $post
+     * @param Request $request The request containing the reaction type.
+     * @param Post $post The post being reacted to.
      *
-     * @return void
+     * @return JsonResponse
      */
-    public function postReaction(Request $request, Post $post)
+    public function postReaction(Request $request, Post $post): JsonResponse
     {
         $data = $request->validate([
             'reaction' => ['required', Rule::in(['like'])],
@@ -193,89 +163,56 @@ class PostController extends Controller
 
         $reactions = Reaction::where('object_id', $post->id)->where('object_type', Post::class)->count();
 
-        return response([
+        return $this->apiResponse('Post Updated Successfully', 201,[
             'num_of_reactions' => $reactions,
             'current_user_has_reaction' => $hasReaction,
         ]);
     }
 
     /**
-     * Method createComment.
+     * Store new attachment files for a specific post.
      *
-     * @param Request $request [explicite description]
-     * @param Post    $post    [explicite description]
+     * @param \Illuminate\Http\UploadedFile[] $files Array of uploaded files.
+     * @param int $postID The ID of the post to attach files to.
      *
-     * @return void
+     * @return array
      */
-    public function createComment(Request $request, Post $post)
+    private function createNewPostAttachment($files, $postID): array
     {
-        $data = $request->validate([
-            'comment' => ['required'],
-            'parent_id' => ['nullable', 'exists:comments,id'],
-        ]);
+        foreach ($files as $file) {
+            $path = $file->store('attachments/'. $postID, 'public');
+            $allFilePaths[] = $path;
 
-        $comment = Comment::create([
-            'post_id' => $post->id,
-            'comment' => nl2br($data['comment']),
-            'user_id' => Auth::id(),
-            'parent_id' => $data['parent_id'] ?: null,
-        ]);
-
-        return response(new CommentResource($comment), 201);
-    }
-
-    public function updateComment(UpdateCommentRequest $request, Comment $comment)
-    {
-        $data = $request->validated();
-
-        $comment->update([
-            'comment' => nl2br($data['comment']),
-        ]);
-
-        return new CommentResource($comment);
-    }
-
-    public function commentReaction(Request $request, Comment $comment)
-    {
-        $data = $request->validate([
-            'reaction' => ['required', Rule::in(['like'])],
-        ]);
-
-        $userId = Auth::id();
-        $reaction = Reaction::where('user_id', $userId)
-            ->where('object_id', $comment->id)
-            ->where('object_type', Comment::class)
-            ->first();
-
-        if ($reaction) {
-            $hasReaction = false;
-            $reaction->delete();
-        } else {
-            $hasReaction = true;
-            Reaction::create([
-                'object_id' => $comment->id,
-                'object_type' => Comment::class,
-                'user_id' => $userId,
-                'type' => $data['reaction'],
+            PostAttachment::create([
+                'post_id' =>  $postID,
+                'name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'created_by' => Auth::id(),
             ]);
         }
 
-        $reactions = Reaction::where('object_id', $comment->id)->where('object_type', Comment::class)->count();
-
-        return response([
-            'num_of_reactions' => $reactions,
-            'current_user_has_reaction' => $hasReaction,
-        ]);
+        return $allFilePaths;
     }
 
-    public function deleteComment(Comment $comment)
+    /**
+     * Delete attachments from a post based on a list of IDs.
+     *
+     * @param array $deleted_ids IDs of attachments to delete.
+     * @param int $postID The ID of the related post.
+     *
+     * @return void
+     */
+    private function deleteOldPostAttachments($deleted_ids, $postID): void
     {
-        if ($comment->user_id !== Auth::id()) {
-            return response("You don't have permission to delete this comment.", 403);
+        $attachments = PostAttachment::query()
+            ->whereIn('id', $deleted_ids)
+            ->where('post_id', $postID)
+            ->get();
+
+        foreach ($attachments as $attachment) {
+            $attachment->delete();
         }
-
-        $comment->delete();
-
-        return response('', 204);
     }
 }
