@@ -9,7 +9,7 @@ services:
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
-            - '8080:80'
+            - '80:80'
             - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
         environment:
             WWWUSER: '${WWWUSER}'
@@ -18,7 +18,7 @@ services:
             XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
             IGNITION_LOCAL_SITES_PATH: '${PWD}'
         volumes:
-            - '.:/var/www/html'
+            - .:/var/www/html:delegated
         networks:
             - sail
         depends_on:
@@ -28,7 +28,7 @@ services:
             - mailpit
             # - selenium
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+            test: ["CMD", "curl", "-f", "http://localhost/health"]
             interval: 10s
             timeout: 5s
             retries: 5
